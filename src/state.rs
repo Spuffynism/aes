@@ -1,5 +1,5 @@
 use aes;
-use aes::math;
+use math;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct State {
