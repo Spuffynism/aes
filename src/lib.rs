@@ -80,6 +80,7 @@ const Rcon: [[u8; 4]; 10] = [
     [0x36, 0x00, 0x00, 0x00],
 ];
 
+#[derive(PartialEq, Debug)]
 pub struct Key(pub [u8; 16]);
 
 impl Key {

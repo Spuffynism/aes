@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn inv_mix_columns_test() {
-        let mut test_cases = &mut [
+        let test_cases = &mut [
             (State {
                 data: [
                     [0xbd, 0x6e, 0x7c, 0x3d],
