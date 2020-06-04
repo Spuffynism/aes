@@ -1,19 +1,3 @@
-pub fn fixed_xor(input: &[u8], key: &[u8]) -> Vec<u8> {
-    assert_eq!(input.len(), key.len());
-
-    fixed_key_xor(input, key)
-}
-
-pub fn single_byte_xor(input: &[u8], key: u8) -> Vec<u8> {
-    let mut result: Vec<u8> = Vec::with_capacity(input.len());
-
-    for item in input.iter() {
-        result.push(item ^ key);
-    }
-
-    result
-}
-
 pub fn fixed_key_xor(input: &[u8], key: &[u8]) -> Vec<u8> {
     let mut result: Vec<u8> = Vec::with_capacity(input.len());
 
@@ -22,4 +6,12 @@ pub fn fixed_key_xor(input: &[u8], key: &[u8]) -> Vec<u8> {
     }
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn placeholder() {
+        assert_eq!(false, true, "TODO: Write tests for xor module");
+    }
 }

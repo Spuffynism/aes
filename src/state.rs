@@ -1,16 +1,17 @@
-use aes;
-use math;
+use ::{math, Nb};
+use ::{S_BOX, INVERSE_S_BOX};
+use Iv;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct State {
-    data: [[u8; 4]; aes::Nb],
+    data: [[u8; 4]; Nb],
 }
 
 impl State {
     pub fn from_part(part: &[u8]) -> State {
         let mut state = State::empty();
         for r in 0..4 {
-            for c in 0..aes::Nb {
+            for c in 0..Nb {
                 state.data[c][r] = part[r + 4 * c];
             }
         }
@@ -19,13 +20,13 @@ impl State {
     }
 
     pub fn empty() -> State {
-        State { data: [[0u8; 4]; aes::Nb] }
+        State { data: [[0u8; 4]; Nb] }
     }
 
     pub fn to_block(&self) -> Vec<u8> {
-        let mut out = vec![0u8; 4 * aes::Nb];
+        let mut out = vec![0u8; 4 * Nb];
         for r in 0..4 {
-            for c in 0..aes::Nb {
+            for c in 0..Nb {
                 out[r + 4 * c] = self.data[c][r];
             }
         }
@@ -37,17 +38,17 @@ impl State {
         self.xor(&[&other.data[0], &other.data[1], &other.data[2], &other.data[3]])
     }
 
-    pub fn xor(&mut self, data: &[&[u8; 4]; aes::Nb]) {
+    pub fn xor(&mut self, data: &[&[u8; 4]; Nb]) {
         for r in 0..4 {
-            for c in 0..aes::Nb {
+            for c in 0..Nb {
                 self.data[r][c] ^= data[r][c];
             }
         }
     }
 
-    pub fn xor_with_iv(&mut self, iv: &aes::Iv) {
+    pub fn xor_with_iv(&mut self, iv: &Iv) {
         for r in 0..4 {
-            for c in 0..aes::Nb {
+            for c in 0..Nb {
                 self.data[r][c] ^= iv.0[r][c];
             }
         }
@@ -66,12 +67,12 @@ impl State {
     /// substitution table (S-box) that operates on each of the State bytes
     /// independently.
     pub fn sub_bytes(&mut self) {
-        self.sub_bytes_with_box(&aes::S_BOX)
+        self.sub_bytes_with_box(&S_BOX)
     }
 
     /// Transformation in the Inverse Cipher that is the inverse of SubBytes
     pub fn inv_sub_bytes(&mut self) {
-        self.sub_bytes_with_box(&aes::INVERSE_S_BOX)
+        self.sub_bytes_with_box(&INVERSE_S_BOX)
     }
 
     fn sub_bytes_with_box(&mut self, substitution_box: &[u8; 256]) {
@@ -130,8 +131,8 @@ impl State {
 
     // TODO: Find a way to do this without using a temporary array
     fn mix_columns_using_substitution_matrix(&mut self, substitution_matrix: &[&[u8]]) {
-        let mut mixed_columns = [[0; 4]; aes::Nb];
-        for c in 0..aes::Nb {
+        let mut mixed_columns = [[0; 4]; Nb];
+        for c in 0..Nb {
             for r in 0..4 {
                 let mut multiplications_xor = 0;
                 for i in 0..4 {

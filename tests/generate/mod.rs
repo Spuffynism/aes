@@ -1,9 +1,12 @@
-use rand::RngCore;
-use aes;
+extern crate aes;
+extern crate rand;
 
-pub fn generate_aes_128_cbc_iv() -> aes::Iv {
+use aes::{Block, Iv, Key};
+use self::rand::RngCore;
+
+pub fn generate_aes_128_cbc_iv() -> Iv {
     let byte = random_byte;
-    aes::Block([
+    Block([
         [byte(), byte(), byte(), byte()],
         [byte(), byte(), byte(), byte()],
         [byte(), byte(), byte(), byte()],
@@ -15,13 +18,13 @@ fn random_byte() -> u8 {
     rand::random::<u8>()
 }
 
-pub fn generate_aes_128_key() -> aes::Key {
+pub fn generate_aes_128_key() -> Key {
     let mut key = [0; 16];
     for item in key.iter_mut() {
         *item = random_byte();
     }
 
-    aes::Key(key)
+    Key(key)
 }
 
 pub fn generate_bytes_for_length(length: usize) -> Vec<u8> {

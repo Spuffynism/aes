@@ -3,5 +3,5 @@ name = "aes"
 version = "0.0.1"
 authors = ["Spuffynism"]
 
-[dependencies]
+[dev-dependencies]
 rand = "0.7"
