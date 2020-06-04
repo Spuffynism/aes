@@ -2,6 +2,10 @@
 name = "aes"
 version = "0.0.1"
 authors = ["Spuffynism"]
+license = "MIT"
+description = "An implementation of AES"
+readme = "README.md"
+repository = "https://github.com/Spuffynism/aes"
 
 [dev-dependencies]
 rand = "0.7"
