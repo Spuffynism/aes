@@ -1,3 +1,5 @@
+[![crates.io](https://img.shields.io/crates/v/blake2.svg)](https://crates.io/crates/aes-ndlr)
+
 # aes
 
 A Rust AES implementation.
