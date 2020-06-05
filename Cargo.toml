@@ -1,5 +1,5 @@
 [package]
-name = "aes"
+name = "aes-ndlr"
 version = "0.0.1"
 authors = ["Spuffynism"]
 license = "MIT"
