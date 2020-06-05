@@ -1,4 +1,4 @@
-[![crates.io](https://img.shields.io/crates/v/blake2.svg)](https://crates.io/crates/aes-ndlr)
+[![crates.io](https://img.shields.io/badge/aes--ndlr-0.0.1-orange.svg)](https://crates.io/crates/aes-ndlr)
 
 # aes
 
