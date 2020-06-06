@@ -35,7 +35,7 @@ mod tests {
             b: u8,
             expected: u8,
         }
-        let test_cases: Vec<TestCase> = vec![
+        let test_cases = vec![
             TestCase { a: 0x57, b: 0x83, expected: 0xc1 },
             TestCase { a: 0x57, b: 0x13, expected: 0xfe },
             TestCase { a: 0x57, b: 0x02, expected: 0xae },
@@ -45,8 +45,8 @@ mod tests {
         ];
 
         for case in test_cases.iter() {
-            let actual_result = multiply_in_g(case.a, case.b);
-            assert_eq!(actual_result, case.expected);
+            let result = multiply_in_g(case.a, case.b);
+            assert_eq!(result, case.expected);
         }
     }
 }
