@@ -14,7 +14,7 @@ pub fn rot_word(word: &[u8]) -> Vec<u8> {
 pub fn sub_word(word: &[u8]) -> Vec<u8> {
     assert_eq!(word.len(), 4);
 
-    word.iter().map(|word| S_BOX[*word as usize]).collect()
+    word.iter().map(|byte| S_BOX[*byte as usize]).collect()
 }
 
 #[cfg(test)]
