@@ -1,7 +1,7 @@
-extern crate aes_ndlr;
+extern crate aes_ndlr as aes;
 
-use aes_ndlr::{AESEncryptionOptions, decrypt_aes_128, encrypt_aes_128};
-use aes_ndlr::key::Key;
+use aes::{AESEncryptionOptions, decrypt_aes_128, encrypt_aes_128};
+use aes::key::Key;
 
 fn main() {
     let text = "Some piece of text to encrypt".as_bytes();
