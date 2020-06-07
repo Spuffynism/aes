@@ -1,4 +1,16 @@
-use pad::Error::{InvalidLastPaddingByte, InconsistentPadding};
+use pad::Error::{InconsistentPadding, InvalidLastPaddingByte};
+
+#[derive(PartialEq, Debug)]
+pub enum Padding {
+    PKCS7,
+    None,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Error {
+    InconsistentPadding,
+    InvalidLastPaddingByte,
+}
 
 /// see https://tools.ietf.org/html/rfc5652#section-6.3
 pub fn pkcs7_pad(bytes: &[u8], block_size: u8) -> Vec<u8> {
@@ -9,12 +21,6 @@ pub fn pkcs7_pad(bytes: &[u8], block_size: u8) -> Vec<u8> {
     }
 
     [&bytes[..], &vec![pad_length; pad_length as usize][..]].concat()
-}
-
-#[derive(Debug, PartialEq)]
-pub enum Error {
-    InconsistentPadding,
-    InvalidLastPaddingByte,
 }
 
 pub fn validate_pkcs7_pad(bytes: &[u8], block_size: u8) -> Result<(), Error> {

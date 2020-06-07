@@ -1,7 +1,7 @@
-extern crate aes_ndlr;
+extern crate aes_ndlr as aes;
 
-use aes_ndlr::{AESEncryptionOptions, BlockCipherMode, decrypt_aes_128, encrypt_aes_128, Padding};
-use aes_ndlr::key::Key;
+use aes::{AESEncryptionOptions, BlockCipherMode, decrypt_aes_128, encrypt_aes_128, pad::Padding};
+use aes::key::Key;
 use generate::generate_aes_128_cbc_iv;
 
 mod generate;
@@ -23,10 +23,10 @@ fn encrypt_and_decrypt_ecb() {
     let cipher = encrypt_aes_128(
         &raw,
         &key,
-        &AESEncryptionOptions {
-            block_cipher_mode: &BlockCipherMode::ECB,
-            padding: &Padding::None,
-        },
+        &AESEncryptionOptions::new(
+            &BlockCipherMode::ECB,
+            &Padding::None,
+        ),
     );
     let actual_deciphered = decrypt_aes_128(&cipher, &key, &BlockCipherMode::ECB);
 
@@ -58,10 +58,10 @@ fn encrypt_and_decrypt_cbc() {
     let cipher = encrypt_aes_128(
         &raw,
         key,
-        &AESEncryptionOptions {
-            block_cipher_mode: &BlockCipherMode::CBC(iv),
-            padding: &Padding::None,
-        },
+        &AESEncryptionOptions::new(
+            &BlockCipherMode::CBC(iv),
+            &Padding::None,
+        ),
     );
     let actual_deciphered = decrypt_aes_128(&cipher, key, &BlockCipherMode::CBC(iv));
 
@@ -92,10 +92,10 @@ fn encrypt_and_decrypt_ctr() {
 
     let key = Key::from_string("YELLOW SUBMARINE");
     let mode = BlockCipherMode::CTR(&[1u8; 8]);
-    let options = &AESEncryptionOptions {
-        block_cipher_mode: &mode,
-        padding: &Padding::None,
-    };
+    let options = &AESEncryptionOptions::new(
+        &mode,
+        &Padding::None,
+    );
 
     let ciphered = encrypt_aes_128(&raw, &key, &options);
     let deciphered = encrypt_aes_128(&ciphered, &key, &options);

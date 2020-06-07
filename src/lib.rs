@@ -1,5 +1,5 @@
 use key::Key;
-use pad::pkcs7_pad;
+use pad::{Padding, pkcs7_pad};
 /// Resources used:
 /// https://csrc.nist.gov/csrc/media/publications/fips/197/final/documents/fips-197.pdf
 /// https://en.wikipedia.org/wiki/Rijndael_MixColumns#Implementation_example
@@ -90,12 +90,18 @@ pub struct AESEncryptionOptions<'a> {
     pub padding: &'a Padding,
 }
 
+impl<'a> AESEncryptionOptions<'a> {
+    pub fn new(block_cipher_mode: &'a BlockCipherMode, padding: &'a Padding) -> Self {
+        AESEncryptionOptions {
+            block_cipher_mode,
+            padding,
+        }
+    }
+}
+
 impl Default for AESEncryptionOptions<'_> {
     fn default() -> Self {
-        AESEncryptionOptions {
-            block_cipher_mode: &BlockCipherMode::ECB,
-            padding: &Padding::None,
-        }
+        AESEncryptionOptions::new(&BlockCipherMode::ECB, &Padding::None)
     }
 }
 
@@ -117,12 +123,6 @@ impl Block {
 
 pub type Iv = Block;
 pub type Nonce = [u8; 8];
-
-#[derive(PartialEq, Debug)]
-pub enum Padding {
-    PKCS7,
-    None,
-}
 
 /// At the start of the Cipher, the input is copied to the State array using the conventions
 /// described in Sec. 3.4. After an initial Round Key addition, the State array is transformed by
@@ -261,6 +261,8 @@ pub fn bytes_to_parts(bytes: &[u8]) -> Vec<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
+    use pad::Padding;
+
     use super::*;
 
     #[test]
@@ -308,10 +310,10 @@ mod tests {
         let actual_cipher = encrypt_aes_128(
             &raw,
             &key,
-            &AESEncryptionOptions {
-                block_cipher_mode: &BlockCipherMode::ECB,
-                padding: &Padding::None,
-            },
+            &AESEncryptionOptions::new(
+                &BlockCipherMode::ECB,
+                &Padding::None,
+            ),
         );
 
         assert_eq!(actual_cipher, expected_cipher);
@@ -352,5 +354,19 @@ mod tests {
         let actual_raw = decrypt_aes_128(&cipher, &key, &BlockCipherMode::ECB);
 
         assert_eq!(actual_raw, expected_raw);
+    }
+
+    #[test]
+    fn bytes_to_parts_converts_bytes_to_parts_of_block_size_length() {
+        let bytes: [u8; 32] = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+            16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+        ];
+        let expected_parts = vec![
+            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            vec![16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+        ];
+
+        assert_eq!(bytes_to_parts(&bytes.to_vec()), expected_parts);
     }
 }

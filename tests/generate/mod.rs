@@ -1,9 +1,7 @@
-extern crate aes_ndlr;
 extern crate rand;
 
 use self::rand::RngCore;
-use aes_ndlr::{Iv, Block};
-use aes_ndlr::key::Key;
+use aes::{Iv, Block, key::Key};
 
 pub fn generate_aes_128_cbc_iv() -> Iv {
     let byte = random_byte;
