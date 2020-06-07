@@ -68,7 +68,7 @@ mod tests {
     }
 
     #[test]
-    fn key_expansion_test() {
+    fn do_key_expansion_produces_corresponding_key_schedule() {
         // as provided in official paper
         let key = &Key([
             0x2b, 0x7e, 0x15, 0x16,

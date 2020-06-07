@@ -23,7 +23,10 @@ fn encrypt_and_decrypt_ecb() {
     let cipher = encrypt_aes_128(
         &raw,
         &key,
-        &AESEncryptionOptions::new(&BlockCipherMode::ECB, &Padding::None),
+        &AESEncryptionOptions {
+            block_cipher_mode: &BlockCipherMode::ECB,
+            padding: &Padding::None,
+        },
     );
     let actual_deciphered = decrypt_aes_128(&cipher, &key, &BlockCipherMode::ECB);
 
@@ -55,7 +58,10 @@ fn encrypt_and_decrypt_cbc() {
     let cipher = encrypt_aes_128(
         &raw,
         key,
-        &AESEncryptionOptions::new(&BlockCipherMode::CBC(iv), &Padding::None),
+        &AESEncryptionOptions {
+            block_cipher_mode: &BlockCipherMode::CBC(iv),
+            padding: &Padding::None,
+        },
     );
     let actual_deciphered = decrypt_aes_128(&cipher, key, &BlockCipherMode::CBC(iv));
 
@@ -85,8 +91,11 @@ fn encrypt_and_decrypt_ctr() {
     ];
 
     let key = Key::from_string("YELLOW SUBMARINE");
-    let mode = BlockCipherMode::CTR(&[0u8; 8]);
-    let options = &AESEncryptionOptions::new(&mode, &Padding::None);
+    let mode = BlockCipherMode::CTR(&[1u8; 8]);
+    let options = &AESEncryptionOptions {
+        block_cipher_mode: &mode,
+        padding: &Padding::None,
+    };
 
     let ciphered = encrypt_aes_128(&raw, &key, &options);
     let deciphered = encrypt_aes_128(&ciphered, &key, &options);

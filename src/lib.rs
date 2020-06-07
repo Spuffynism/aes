@@ -87,16 +87,7 @@ const Rcon: [[u8; 4]; 10] = [
 #[derive(PartialEq, Debug)]
 pub struct AESEncryptionOptions<'a> {
     pub block_cipher_mode: &'a BlockCipherMode<'a>,
-    padding: &'a Padding,
-}
-
-impl<'a> AESEncryptionOptions<'a> {
-    pub fn new(block_cipher_mode: &'a BlockCipherMode, padding: &'a Padding) -> Self {
-        AESEncryptionOptions {
-            block_cipher_mode,
-            padding,
-        }
-    }
+    pub padding: &'a Padding,
 }
 
 impl Default for AESEncryptionOptions<'_> {
@@ -193,6 +184,7 @@ pub fn encrypt_aes_128(raw_bytes: &[u8], key: &Key, options: &AESEncryptionOptio
     }
 }
 
+// TODO(nich): Spend time to make sure this works correctly
 fn generate_ctr_bytes_for_length(length: usize, nonce: &Nonce) -> Vec<u8> {
     let block_size = 16;
     let mut counter = 0u8;
@@ -272,7 +264,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn encrypt_aes_128_in_ecb_mode_test_case() {
+    fn default_encryption_options_are_ecb_with_no_padding() {
+        let encryption_options = AESEncryptionOptions::default();
+
+        assert_eq!(encryption_options.block_cipher_mode, &BlockCipherMode::ECB);
+        assert_eq!(encryption_options.padding, &Padding::None);
+    }
+
+    #[test]
+    fn empty_produces_empty_block() {
+        let block = Block::empty();
+        let expected_block = [
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+            [0, 0, 0, 0],
+        ];
+
+        assert_eq!(block.0, expected_block);
+    }
+
+    #[test]
+    fn encrypt_aes_128_in_ecb_mode_encrypts() {
         let raw: &[u8] = &[
             0x0, 0x11, 0x22, 0x33,
             0x44, 0x55, 0x66, 0x77,
@@ -295,17 +308,24 @@ mod tests {
         let actual_cipher = encrypt_aes_128(
             &raw,
             &key,
-            &AESEncryptionOptions::new(&BlockCipherMode::ECB, &Padding::None),
+            &AESEncryptionOptions {
+                block_cipher_mode: &BlockCipherMode::ECB,
+                padding: &Padding::None,
+            },
         );
 
         assert_eq!(actual_cipher, expected_cipher);
     }
 
     #[test]
+    #[ignore]
     fn generate_ctr_bytes_for_length_test() {
-        // TODO(nich): Implement this
+        let length = 15;
+        let nonce = [0, 1, 2, 3, 4, 5, 6, 7];
 
-        assert_eq!(false, true, "TODO: Write tests for ctr bytes generation for length");
+        let generated_bytes = generate_ctr_bytes_for_length(length, &nonce);
+
+        assert!(false, "TODO: Write tests for ctr bytes generation for length");
     }
 
     #[test]
