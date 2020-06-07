@@ -1,6 +1,6 @@
 use ::{math, Nb};
-use ::{INVERSE_S_BOX, S_BOX};
-use Iv;
+use ::{Iv, S_BOX};
+use INVERSE_S_BOX;
 
 #[derive(Debug, Clone)]
 pub struct State {

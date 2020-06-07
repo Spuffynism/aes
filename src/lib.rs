@@ -1,27 +1,17 @@
+use key::{Key, key_expansion};
+use pad::pkcs7_pad;
 /// Resources used:
 /// https://csrc.nist.gov/csrc/media/publications/fips/197/final/documents/fips-197.pdf
 /// https://en.wikipedia.org/wiki/Rijndael_MixColumns#Implementation_example
 /// https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
 use Padding::PKCS7;
-use PaddingError::{InvalidLastPaddingByte, PaddingNotConsistent};
 
 mod state;
 mod xor;
 mod math;
-
-/// Number of columns (32-bit words) comprising the State. For this standard, Nb = 4.
-#[allow(non_upper_case_globals)]
-const Nb: usize = 4;
-
-/// Number of rounds, which is a function of Nk and Nb (which is fixed). For this implementation,
-/// Nr = 10. (because this is only aes-128)
-#[allow(non_upper_case_globals)]
-const Nr: usize = 10;
-
-/// Number of 32-bit words comprising the Cipher Key. For this implementation, Nk = 4. (because
-/// this is only aes-128)
-#[allow(non_upper_case_globals)]
-const Nk: usize = 4;
+mod word;
+mod pad;
+pub mod key;
 
 /// Non-linear substitution table used in several byte substitution transformations and in the
 /// Key Expansion routine to perform a one-for-one substitution of a byte value.
@@ -65,6 +55,20 @@ const INVERSE_S_BOX: [u8; 256] = [
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d
 ];
 
+/// Number of columns (32-bit words) comprising the State. For this standard, Nb = 4.
+#[allow(non_upper_case_globals)]
+const Nb: usize = 4;
+
+/// Number of rounds, which is a function of Nk and Nb (which is fixed). For this implementation,
+/// Nr = 10. (because this is only aes-128)
+#[allow(non_upper_case_globals)]
+const Nr: usize = 10;
+
+/// Number of 32-bit words comprising the Cipher Key. For this implementation, Nk = 4. (because
+/// this is only aes-128)
+#[allow(non_upper_case_globals)]
+const Nk: usize = 4;
+
 /// Round constant word array.
 #[allow(non_upper_case_globals)]
 const Rcon: [[u8; 4]; 10] = [
@@ -79,25 +83,6 @@ const Rcon: [[u8; 4]; 10] = [
     [0x1b, 0x00, 0x00, 0x00],
     [0x36, 0x00, 0x00, 0x00],
 ];
-
-#[derive(PartialEq, Debug)]
-pub struct Key(pub [u8; 16]);
-
-impl Key {
-    pub fn new_from_string(string: &str) -> Self {
-        Key(Key::key_from_string(string))
-    }
-
-    fn key_from_string(s: &str) -> [u8; 16] {
-        let mut out = [0u8; 16];
-        let bytes = s.as_bytes();
-        for (i, byte) in out.iter_mut().enumerate() {
-            *byte = bytes[i];
-        }
-
-        out
-    }
-}
 
 #[derive(PartialEq, Debug)]
 pub struct AESEncryptionOptions<'a> {
@@ -269,7 +254,7 @@ pub fn decrypt_aes_128(cipher: &[u8], key: &Key, mode: &BlockCipherMode) -> Vec<
     deciphered
 }
 
-fn bytes_to_parts(bytes: &[u8]) -> Vec<Vec<u8>> {
+pub fn bytes_to_parts(bytes: &[u8]) -> Vec<Vec<u8>> {
     let block_size = 16;
 
     let mut parts = vec![
@@ -282,203 +267,38 @@ fn bytes_to_parts(bytes: &[u8]) -> Vec<Vec<u8>> {
     parts
 }
 
-struct KeySchedule(pub [[u8; 4]; Nb * (Nr + 1)]);
-
-/// Routine used to generate a series of Round Keys from the Cipher Key.
-/// The Key Expansion generates a total of Nb (Nr + 1) words: the algorithm requires
-/// an initial set of Nb words, and each of the Nr rounds requires Nb words of key data. The
-/// resulting key schedule consists of a linear array of 4-byte words, denoted [wi ], with i in
-/// the range 0 <= i < Nb(Nr + 1).
-fn key_expansion(key: &Key) -> KeySchedule {
-    let mut w = [[0u8; Nk]; Nb * (Nr + 1)];
-
-    for i in 0..Nk {
-        let key_part = &key.0[4 * i..4 * i + 4];
-        w[i] = [key_part[0], key_part[1], key_part[2], key_part[3]];
-    }
-
-    for i in Nk..(Nb * (Nr + 1)) {
-        let mut temp = w[i - 1].to_vec();
-        if i % Nk == 0 {
-            let xored = xor::fixed_key_xor(
-                &sub_word(&rot_word(&temp)),
-                &Rcon[(i / Nk) - 1],
-            );
-            temp = xored;
-        } else if Nk > 6 && i % Nk == 4 {
-            temp = sub_word(&temp);
-        }
-        let key = xor::fixed_key_xor(&w[i - Nk][..], &temp);
-        w[i] = [key[0], key[1], key[2], key[3]];
-    }
-
-    KeySchedule(w)
-}
-
-/// Function used in the Key Expansion routine that takes a four-byte
-/// word and performs a cyclic permutation.
-fn rot_word(word: &[u8]) -> Vec<u8> {
-    assert_eq!(word.len(), 4);
-
-    [&word[1..], &[word[0]]].concat()
-}
-
-/// Function used in the Key Expansion routine that takes a four-byte
-/// input word and applies an S-box to each of the four bytes to
-/// produce an output word.
-fn sub_word(word: &[u8]) -> Vec<u8> {
-    assert_eq!(word.len(), 4);
-
-    word.iter().map(|word| S_BOX[*word as usize]).collect()
-}
-
-/// see https://tools.ietf.org/html/rfc5652#section-6.3
-pub fn pkcs7_pad(bytes: &[u8], block_size: u8) -> Vec<u8> {
-    let mut pad_length = block_size - (bytes.len() as u8 % block_size);
-
-    if pad_length == 0 {
-        pad_length = block_size;
-    }
-
-    [&bytes[..], &vec![pad_length; pad_length as usize][..]].concat()
-}
-
-#[derive(Debug, PartialEq)]
-pub enum PaddingError {
-    PaddingNotConsistent,
-    InvalidLastPaddingByte,
-}
-
-pub fn validate_pkcs7_pad(bytes: &[u8], block_size: u8) -> Result<(), PaddingError> {
-    assert!(bytes.len() >= 2);
-    assert!(block_size >= 2);
-
-    let padding_length = *bytes.last().unwrap();
-
-    if padding_length == 0
-        || padding_length > block_size
-        || padding_length as usize > bytes.len() {
-        return Err(InvalidLastPaddingByte);
-    }
-
-    let last_block = bytes.len() - padding_length as usize..;
-    let pad = &bytes[last_block];
-
-    match pad.iter().all(|byte| *byte == padding_length) {
-        true => Ok(()),
-        false => Err(PaddingNotConsistent)
-    }
-}
-
-pub fn remove_pkcs7_padding(bytes: &[u8]) -> Vec<u8> {
-    let pad = *bytes.last().unwrap();
-
-    bytes[..bytes.len() - pad as usize].to_vec()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn validate_pkcs7_pad_test() {
-        let block_size = 16;
-        let block = &vec![
-            13, 3, 206, 79, 0, 46, 143, 222,
-            214, 77, 158, 253, 203, 223, 251, 60
+    fn encrypt_aes_128_in_ecb_mode_test_case() {
+        let raw: &[u8] = &[
+            0x0, 0x11, 0x22, 0x33,
+            0x44, 0x55, 0x66, 0x77,
+            0x88, 0x99, 0xaa, 0xbb,
+            0xcc, 0xdd, 0xee, 0xff
         ];
-        let pad = &vec![block_size as u8; block_size];
-
-        let padded_block = &[
-            &block[..],
-            &pad[..]
-        ].concat();
-
-        assert!(validate_pkcs7_pad(padded_block, block_size as u8).is_ok());
-    }
-
-    #[test]
-    fn rot_word_test() {
-        let word: &[u8] = &[0, 1, 2, 3];
-        let expected_word: &[u8] = &[1, 2, 3, 0];
-
-        let actual_word = rot_word(word);
-        assert_eq!(actual_word.as_slice(), expected_word);
-    }
-
-    #[test]
-    fn sub_word_test() {
-        let word: &[u8] = &[0, 1, 2, 3];
-        let expected_word: &[u8] = &[0x63, 0x7c, 0x77, 0x7b];
-
-        let actual_word = sub_word(word);
-
-        assert_eq!(actual_word.as_slice(), expected_word);
-    }
-
-    #[test]
-    fn key_expansion_test() {
-        // as provided in official paper
         let key = &Key([
-            0x2b, 0x7e, 0x15, 0x16,
-            0x28, 0xae, 0xd2, 0xa6,
-            0xab, 0xf7, 0x15, 0x88,
-            0x09, 0xcf, 0x4f, 0x3c
+            0x00, 0x01, 0x02, 0x03,
+            0x04, 0x05, 0x06, 0x07,
+            0x08, 0x09, 0x0a, 0x0b,
+            0x0c, 0x0d, 0x0e, 0x0f
         ]);
-        // also known as w
-        let expected_key_schedule: [[u8; 4]; 44] = [
-            // copy of key
-            [0x2b, 0x7e, 0x15, 0x16],
-            [0x28, 0xae, 0xd2, 0xa6],
-            [0xab, 0xf7, 0x15, 0x88],
-            [0x09, 0xcf, 0x4f, 0x3c],
-
-            // rest of expansion
-            [0xa0, 0xfa, 0xfe, 0x17],
-            [0x88, 0x54, 0x2c, 0xb1],
-            [0x23, 0xa3, 0x39, 0x39],
-            [0x2a, 0x6c, 0x76, 0x05],
-            [0xf2, 0xc2, 0x95, 0xf2],
-            [0x7a, 0x96, 0xb9, 0x43],
-            [0x59, 0x35, 0x80, 0x7a],
-            [0x73, 0x59, 0xf6, 0x7f],
-            [0x3d, 0x80, 0x47, 0x7d],
-            [0x47, 0x16, 0xfe, 0x3e],
-            [0x1e, 0x23, 0x7e, 0x44],
-            [0x6d, 0x7a, 0x88, 0x3b],
-            [0xef, 0x44, 0xa5, 0x41],
-            [0xa8, 0x52, 0x5b, 0x7f],
-            [0xb6, 0x71, 0x25, 0x3b],
-            [0xdb, 0x0b, 0xad, 0x00],
-            [0xd4, 0xd1, 0xc6, 0xf8],
-            [0x7c, 0x83, 0x9d, 0x87],
-            [0xca, 0xf2, 0xb8, 0xbc],
-            [0x11, 0xf9, 0x15, 0xbc],
-            [0x6d, 0x88, 0xa3, 0x7a],
-            [0x11, 0x0b, 0x3e, 0xfd],
-            [0xdb, 0xf9, 0x86, 0x41],
-            [0xca, 0x00, 0x93, 0xfd],
-            [0x4e, 0x54, 0xf7, 0x0e],
-            [0x5f, 0x5f, 0xc9, 0xf3],
-            [0x84, 0xa6, 0x4f, 0xb2],
-            [0x4e, 0xa6, 0xdc, 0x4f],
-            [0xea, 0xd2, 0x73, 0x21],
-            [0xb5, 0x8d, 0xba, 0xd2],
-            [0x31, 0x2b, 0xf5, 0x60],
-            [0x7f, 0x8d, 0x29, 0x2f],
-            [0xac, 0x77, 0x66, 0xf3],
-            [0x19, 0xfa, 0xdc, 0x21],
-            [0x28, 0xd1, 0x29, 0x41],
-            [0x57, 0x5c, 0x00, 0x6e],
-            [0xd0, 0x14, 0xf9, 0xa8],
-            [0xc9, 0xee, 0x25, 0x89],
-            [0xe1, 0x3f, 0x0c, 0xc8],
-            [0xb6, 0x63, 0x0c, 0xa6]
+        let expected_cipher = &[
+            0x69, 0xc4, 0xe0, 0xd8,
+            0x6a, 0x7b, 0x04, 0x30,
+            0xd8, 0xcd, 0xb7, 0x80,
+            0x70, 0xb4, 0xc5, 0x5a
         ];
 
-        let actual_key_schedule = key_expansion(key);
+        let actual_cipher = encrypt_aes_128(
+            &raw,
+            &key,
+            &AESEncryptionOptions::new(&BlockCipherMode::ECB, &Padding::None),
+        );
 
-        assert_eq!(actual_key_schedule.0.to_vec(), expected_key_schedule.to_vec());
+        assert_eq!(actual_cipher, expected_cipher);
     }
 
     #[test]
@@ -508,37 +328,9 @@ mod tests {
             0x88, 0x99, 0xaa, 0xbb,
             0xcc, 0xdd, 0xee, 0xff
         ];
+
         let actual_raw = decrypt_aes_128(&cipher, &key, &BlockCipherMode::ECB);
 
         assert_eq!(actual_raw, expected_raw);
-    }
-
-    #[test]
-    fn encrypt_aes_128_in_ecb_mode_test_case() {
-        let raw: &[u8] = &[
-            0x0, 0x11, 0x22, 0x33,
-            0x44, 0x55, 0x66, 0x77,
-            0x88, 0x99, 0xaa, 0xbb,
-            0xcc, 0xdd, 0xee, 0xff
-        ];
-        let key = &Key([
-            0x00, 0x01, 0x02, 0x03,
-            0x04, 0x05, 0x06, 0x07,
-            0x08, 0x09, 0x0a, 0x0b,
-            0x0c, 0x0d, 0x0e, 0x0f
-        ]);
-        let expected_cipher = &[
-            0x69, 0xc4, 0xe0, 0xd8,
-            0x6a, 0x7b, 0x04, 0x30,
-            0xd8, 0xcd, 0xb7, 0x80,
-            0x70, 0xb4, 0xc5, 0x5a
-        ];
-        let actual_cipher = encrypt_aes_128(
-            &raw,
-            &key,
-            &AESEncryptionOptions::new(&BlockCipherMode::ECB, &Padding::None),
-        );
-
-        assert_eq!(actual_cipher, expected_cipher);
     }
 }

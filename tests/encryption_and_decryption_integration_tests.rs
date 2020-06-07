@@ -1,6 +1,7 @@
-extern crate aes;
+extern crate aes_ndlr;
 
-use aes::{AESEncryptionOptions, BlockCipherMode, decrypt_aes_128, encrypt_aes_128, Key, Padding};
+use aes_ndlr::{AESEncryptionOptions, BlockCipherMode, decrypt_aes_128, encrypt_aes_128, Padding};
+use aes_ndlr::key::Key;
 use generate::generate_aes_128_cbc_iv;
 
 mod generate;
@@ -83,7 +84,7 @@ fn encrypt_and_decrypt_ctr() {
         0xcc, 0xdd, 0xee, 0xff,
     ];
 
-    let key = Key::new_from_string("YELLOW SUBMARINE");
+    let key = Key::from_string("YELLOW SUBMARINE");
     let mode = BlockCipherMode::CTR(&[0u8; 8]);
     let options = &AESEncryptionOptions::new(&mode, &Padding::None);
 
