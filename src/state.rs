@@ -156,8 +156,6 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    #![feature(const_fn)]
-
     use Block;
 
     use super::*;
