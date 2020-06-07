@@ -6,12 +6,12 @@ use pad::pkcs7_pad;
 /// https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
 use Padding::PKCS7;
 
+pub mod pad;
+pub mod key;
 mod state;
 mod xor;
 mod math;
 mod word;
-mod pad;
-pub mod key;
 
 /// Non-linear substitution table used in several byte substitution transformations and in the
 /// Key Expansion routine to perform a one-for-one substitution of a byte value.
@@ -86,7 +86,7 @@ const Rcon: [[u8; 4]; 10] = [
 
 #[derive(PartialEq, Debug)]
 pub struct AESEncryptionOptions<'a> {
-    block_cipher_mode: &'a BlockCipherMode<'a>,
+    pub block_cipher_mode: &'a BlockCipherMode<'a>,
     padding: &'a Padding,
 }
 
