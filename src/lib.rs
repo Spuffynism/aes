@@ -1,4 +1,4 @@
-use key::{Key, key_expansion};
+use key::Key;
 use pad::pkcs7_pad;
 /// Resources used:
 /// https://csrc.nist.gov/csrc/media/publications/fips/197/final/documents/fips-197.pdf
@@ -141,7 +141,7 @@ pub enum Padding {
 pub fn encrypt_aes_128(raw_bytes: &[u8], key: &Key, options: &AESEncryptionOptions) -> Vec<u8> {
     let block_size = 16;
 
-    let w = &key_expansion(key).0;
+    let w = &key.do_key_expansion().0;
     let bytes = &if options.padding == &PKCS7 {
         pkcs7_pad(raw_bytes, block_size)
     } else {
@@ -218,7 +218,7 @@ fn generate_ctr_bytes_for_length(length: usize, nonce: &Nonce) -> Vec<u8> {
 /// used in the Inverse Cipher - InvShiftRows(), InvSubBytes(),InvMixColumns(),
 /// and AddRoundKey() – process the State and are described in the following subsections.
 pub fn decrypt_aes_128(cipher: &[u8], key: &Key, mode: &BlockCipherMode) -> Vec<u8> {
-    let w = &key_expansion(key).0;
+    let w = &key.do_key_expansion().0;
     let parts = bytes_to_parts(cipher);
     let mut deciphered: Vec<u8> = Vec::with_capacity(cipher.len());
     let mut previous_state = state::State::empty();

@@ -5,6 +5,8 @@ use Rcon;
 #[derive(PartialEq, Debug)]
 pub struct Key(pub [u8; 16]);
 
+pub struct KeySchedule(pub [[u8; 4]; Nb * (Nr + 1)]);
+
 impl Key {
     pub fn from_string(string: &str) -> Self {
         let mut out = [0u8; 16];
@@ -15,39 +17,37 @@ impl Key {
 
         Key(out)
     }
-}
 
-pub struct KeySchedule(pub [[u8; 4]; Nb * (Nr + 1)]);
+    /// Routine used to generate a series of Round Keys from the Cipher Key.
+    /// The Key Expansion generates a total of Nb (Nr + 1) words: the algorithm requires
+    /// an initial set of Nb words, and each of the Nr rounds requires Nb words of key data. The
+    /// resulting key schedule consists of a linear array of 4-byte words, denoted [wi ], with i in
+    /// the range 0 <= i < Nb(Nr + 1).
+    pub fn do_key_expansion(&self) -> KeySchedule {
+        let mut w = [[0u8; Nk]; Nb * (Nr + 1)];
 
-/// Routine used to generate a series of Round Keys from the Cipher Key.
-/// The Key Expansion generates a total of Nb (Nr + 1) words: the algorithm requires
-/// an initial set of Nb words, and each of the Nr rounds requires Nb words of key data. The
-/// resulting key schedule consists of a linear array of 4-byte words, denoted [wi ], with i in
-/// the range 0 <= i < Nb(Nr + 1).
-pub fn key_expansion(key: &Key) -> KeySchedule {
-    let mut w = [[0u8; Nk]; Nb * (Nr + 1)];
-
-    for i in 0..Nk {
-        let key_part = &key.0[4 * i..4 * i + 4];
-        w[i] = [key_part[0], key_part[1], key_part[2], key_part[3]];
-    }
-
-    for i in Nk..(Nb * (Nr + 1)) {
-        let mut temp = w[i - 1].to_vec();
-        if i % Nk == 0 {
-            let xored = xor::fixed_key_xor(
-                &sub_word(&rot_word(&temp)),
-                &Rcon[(i / Nk) - 1],
-            );
-            temp = xored;
-        } else if Nk > 6 && i % Nk == 4 {
-            temp = sub_word(&temp);
+        for i in 0..Nk {
+            let key_part = &self.0[4 * i..4 * i + 4];
+            w[i] = [key_part[0], key_part[1], key_part[2], key_part[3]];
         }
-        let key = xor::fixed_key_xor(&w[i - Nk][..], &temp);
-        w[i] = [key[0], key[1], key[2], key[3]];
-    }
 
-    KeySchedule(w)
+        for i in Nk..(Nb * (Nr + 1)) {
+            let mut temp = w[i - 1].to_vec();
+            if i % Nk == 0 {
+                let xored = xor::fixed_key_xor(
+                    &sub_word(&rot_word(&temp)),
+                    &Rcon[(i / Nk) - 1],
+                );
+                temp = xored;
+            } else if Nk > 6 && i % Nk == 4 {
+                temp = sub_word(&temp);
+            }
+            let key = xor::fixed_key_xor(&w[i - Nk][..], &temp);
+            w[i] = [key[0], key[1], key[2], key[3]];
+        }
+
+        KeySchedule(w)
+    }
 }
 
 #[cfg(test)]
@@ -127,7 +127,7 @@ mod tests {
             [0xb6, 0x63, 0x0c, 0xa6]
         ];
 
-        let actual_key_schedule = key_expansion(key);
+        let actual_key_schedule = key.do_key_expansion();
 
         assert_eq!(actual_key_schedule.0.to_vec(), expected_key_schedule.to_vec());
     }
