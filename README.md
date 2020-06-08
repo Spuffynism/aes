@@ -20,3 +20,12 @@ Supports ECB, CBC and CTR block cipher modes and PKCS7 padding.
 - complete integration tests
     - aes
 - see about using property testing
+- properly document each file & functions
+    - constants
+    - key
+    - lib
+    - math
+    - pad
+    - state
+    - word
+    - xor
