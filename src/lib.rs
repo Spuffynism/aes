@@ -1,3 +1,4 @@
+use constants::*;
 /// Resources used:
 /// https://csrc.nist.gov/csrc/media/publications/fips/197/final/documents/fips-197.pdf
 /// https://en.wikipedia.org/wiki/Rijndael_MixColumns#Implementation_example
@@ -5,7 +6,6 @@
 use key::Key;
 use pad::{Padding, pkcs7_pad};
 use Padding::PKCS7;
-use constants::*;
 use state::State;
 
 pub mod pad;
@@ -15,6 +15,7 @@ mod xor;
 mod math;
 mod word;
 mod constants;
+mod ctr;
 
 #[derive(PartialEq, Debug)]
 pub struct AESEncryptionOptions<'a> {
@@ -69,7 +70,7 @@ pub fn encrypt_aes_128(raw_bytes: &[u8], key: &Key, options: &AESEncryptionOptio
         pkcs7_pad(raw_bytes, block_size)
     } else {
         if let BlockCipherMode::CTR(nonce) = &options.block_cipher_mode {
-            generate_ctr_bytes_for_length(raw_bytes.len(), &nonce)
+            ctr::generate_ctr_byte_stream_for_length(raw_bytes.len(), &nonce)
         } else {
             raw_bytes.to_vec()
         }
@@ -116,27 +117,6 @@ pub fn encrypt_aes_128(raw_bytes: &[u8], key: &Key, options: &AESEncryptionOptio
     }
 }
 
-// TODO(nich): Spend time to make sure this works correctly
-fn generate_ctr_bytes_for_length(length: usize, nonce: &Nonce) -> Vec<u8> {
-    let block_size = 16;
-    let mut counter = 0u8;
-    (0..length - (length % block_size) + block_size).collect::<Vec<usize>>()
-        .iter()
-        .enumerate()
-        .map(|(i, _)|
-            if (i % block_size) < nonce.len() {
-                nonce[i % block_size]
-            } else if (i % block_size) == nonce.len() {
-                counter += 1;
-
-                counter - 1
-            } else {
-                0u8
-            }
-        )
-        .collect::<Vec<u8>>()
-}
-
 /// The Cipher transformations in Sec. 5.1 can be inverted and then implemented in reverse order to
 /// produce a straightforward Inverse Cipher for the AES algorithm. The individual transformations
 /// used in the Inverse Cipher - InvShiftRows(), InvSubBytes(),InvMixColumns(),
@@ -179,18 +159,20 @@ pub fn decrypt_aes_128(cipher: &[u8], key: &Key, mode: &BlockCipherMode) -> Vec<
 }
 
 pub fn bytes_to_parts(bytes: &[u8]) -> Vec<Vec<u8>> {
-    let block_size = 16;
+    let block_size = 16usize;
 
     let mut parts = vec![
-        vec![0; block_size as usize]; (bytes.len() as f32 / block_size as f32).ceil() as usize
+        vec![0; block_size]; (bytes.len() as f32 / block_size as f32).ceil() as usize
     ];
     for (i, byte) in bytes.iter().enumerate() {
-        parts[(i as f32 / block_size as f32).floor() as usize][i % block_size as usize] = *byte;
+        parts[(i as f32 / block_size as f32).floor() as usize][i % block_size] = *byte;
     }
 
     parts
 }
 
+/// Some encryption/decryption test cases are taken from:
+/// https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38a.pdf
 #[cfg(test)]
 mod tests {
     use pad::Padding;
@@ -219,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn encrypt_aes_128_in_ecb_mode_encrypts() {
+    fn encrypts_in_ecb_mode() {
         let raw: &[u8] = &[
             0x0, 0x11, 0x22, 0x33,
             0x44, 0x55, 0x66, 0x77,
@@ -252,18 +234,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn generate_ctr_bytes_for_length_test() {
-        let length = 15;
-        let nonce = [0, 1, 2, 3, 4, 5, 6, 7];
-
-        let generated_bytes = generate_ctr_bytes_for_length(length, &nonce);
-
-        assert!(false, "TODO: Write tests for ctr bytes generation for length");
-    }
-
-    #[test]
-    fn decrypt_aes_128_in_ecb_mode_nist_test_case() {
+    fn decrypts_in_ecb_mode() {
         let cipher: &[u8] = &[
             0x69, 0xc4, 0xe0, 0xd8,
             0x6a, 0x7b, 0x04, 0x30,
@@ -289,15 +260,46 @@ mod tests {
     }
 
     #[test]
+    fn encrypt_in_cbc_mode() {}
+
+    #[test]
+    fn encrypts_in_cbc_mode() {}
+
+    #[test]
+    fn encrypts_in_ctr_mode() {
+        let key = [
+            0x2b, 0x7e, 0x15, 0x16,
+            0x28, 0xae, 0xd2, 0xa6,
+            0xab, 0xf7, 0x15, 0x88,
+            0x09, 0xcf, 0x4f, 0x3c
+        ];
+        let plain = [
+            0xf6, 0x9f, 0x24, 0x45,
+            0xdf, 0x4f, 0x9b, 0x17,
+            0xad, 0x2b, 0x41, 0x7b,
+            0xe6, 0x6c, 0x37, 0x10
+        ];
+        let cipher = [
+            0x1e, 0x03, 0x1d, 0xda,
+            0x2f, 0xbe, 0x03, 0xd1,
+            0x79, 0x21, 0x70, 0xa0,
+            0xf3, 0x00, 0x9c, 0xee
+        ];
+    }
+
+    #[test]
+    fn decrypts_in_ctr_mode() {}
+
+    #[test]
     fn bytes_to_parts_converts_bytes_to_parts_of_block_size_length() {
         let bytes: [u8; 32] = [
             0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
             16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
         ];
-        let expected_parts = vec![
-            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            vec![16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
-        ];
+        let expected_parts = [
+            [bytes[..16].to_vec()],
+            [bytes[16..].to_vec()]
+        ].concat();
 
         assert_eq!(bytes_to_parts(&bytes.to_vec()), expected_parts);
     }
