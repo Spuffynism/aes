@@ -1,3 +1,4 @@
+use constants::*;
 /// Resources used:
 /// https://csrc.nist.gov/csrc/media/publications/fips/197/final/documents/fips-197.pdf
 /// https://en.wikipedia.org/wiki/Rijndael_MixColumns#Implementation_example
@@ -5,7 +6,6 @@
 use key::Key;
 use pad::{Padding, pkcs7_pad};
 use Padding::PKCS7;
-use constants::*;
 use state::State;
 
 pub mod pad;
@@ -15,6 +15,7 @@ mod xor;
 mod math;
 mod word;
 mod constants;
+mod ctr;
 
 #[derive(PartialEq, Debug)]
 pub struct AESEncryptionOptions<'a> {
@@ -69,7 +70,7 @@ pub fn encrypt_aes_128(raw_bytes: &[u8], key: &Key, options: &AESEncryptionOptio
         pkcs7_pad(raw_bytes, block_size)
     } else {
         if let BlockCipherMode::CTR(nonce) = &options.block_cipher_mode {
-            generate_ctr_bytes_for_length(raw_bytes.len(), &nonce)
+            ctr::generate_ctr_byte_stream_for_length(raw_bytes.len(), &nonce)
         } else {
             raw_bytes.to_vec()
         }
@@ -116,32 +117,15 @@ pub fn encrypt_aes_128(raw_bytes: &[u8], key: &Key, options: &AESEncryptionOptio
     }
 }
 
-// TODO(nich): Spend time to make sure this works correctly
-fn generate_ctr_bytes_for_length(length: usize, nonce: &Nonce) -> Vec<u8> {
-    let block_size = 16;
-    let mut counter = 0u8;
-    (0..length - (length % block_size) + block_size).collect::<Vec<usize>>()
-        .iter()
-        .enumerate()
-        .map(|(i, _)|
-            if (i % block_size) < nonce.len() {
-                nonce[i % block_size]
-            } else if (i % block_size) == nonce.len() {
-                counter += 1;
-
-                counter - 1
-            } else {
-                0u8
-            }
-        )
-        .collect::<Vec<u8>>()
-}
-
 /// The Cipher transformations in Sec. 5.1 can be inverted and then implemented in reverse order to
 /// produce a straightforward Inverse Cipher for the AES algorithm. The individual transformations
 /// used in the Inverse Cipher - InvShiftRows(), InvSubBytes(),InvMixColumns(),
 /// and AddRoundKey() – process the State and are described in the following subsections.
 pub fn decrypt_aes_128(cipher: &[u8], key: &Key, mode: &BlockCipherMode) -> Vec<u8> {
+    if let BlockCipherMode::CTR(_nonce) = mode {
+        panic!("Cannot decrypt using CTR block cipher mode. Use encryption instead.");
+    }
+
     let w = &key.do_key_expansion().0;
     let parts = bytes_to_parts(cipher);
     let mut deciphered: Vec<u8> = Vec::with_capacity(cipher.len());
@@ -179,23 +163,89 @@ pub fn decrypt_aes_128(cipher: &[u8], key: &Key, mode: &BlockCipherMode) -> Vec<
 }
 
 pub fn bytes_to_parts(bytes: &[u8]) -> Vec<Vec<u8>> {
-    let block_size = 16;
+    let block_size = 16usize;
 
     let mut parts = vec![
-        vec![0; block_size as usize]; (bytes.len() as f32 / block_size as f32).ceil() as usize
+        vec![0; block_size]; (bytes.len() as f32 / block_size as f32).ceil() as usize
     ];
     for (i, byte) in bytes.iter().enumerate() {
-        parts[(i as f32 / block_size as f32).floor() as usize][i % block_size as usize] = *byte;
+        parts[(i as f32 / block_size as f32).floor() as usize][i % block_size] = *byte;
     }
 
     parts
 }
 
+/// Some encryption/decryption test cases are taken from:
+/// https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38a.pdf
 #[cfg(test)]
 mod tests {
     use pad::Padding;
 
     use super::*;
+
+    const ECB_KEY: Key = Key([
+        0x00, 0x01, 0x02, 0x03,
+        0x04, 0x05, 0x06, 0x07,
+        0x08, 0x09, 0x0a, 0x0b,
+        0x0c, 0x0d, 0x0e, 0x0f
+    ]);
+    const RAW_ECB: [u8; 16] = [
+        0x0, 0x11, 0x22, 0x33,
+        0x44, 0x55, 0x66, 0x77,
+        0x88, 0x99, 0xaa, 0xbb,
+        0xcc, 0xdd, 0xee, 0xff
+    ];
+    const CIPHERED_ECB: [u8; 16] = [
+        0x69, 0xc4, 0xe0, 0xd8,
+        0x6a, 0x7b, 0x04, 0x30,
+        0xd8, 0xcd, 0xb7, 0x80,
+        0x70, 0xb4, 0xc5, 0x5a
+    ];
+
+    const CBC_KEY: Key = Key([
+        0x2b, 0x7e, 0x15, 0x16,
+        0x28, 0xae, 0xd2, 0xa6,
+        0xab, 0xf7, 0x15, 0x88,
+        0x09, 0xcf, 0x4f, 0x3c
+    ]);
+    const CBC_IV: Iv = Block([
+        [0x00, 0x01, 0x02, 0x03],
+        [0x04, 0x05, 0x06, 0x07],
+        [0x08, 0x09, 0x0a, 0x0b],
+        [0x0c, 0x0d, 0x0e, 0x0f]
+    ]);
+    const CIPHERED_CBC: [u8; 16] = [
+        0x76, 0x49, 0xab, 0xac,
+        0x81, 0x19, 0xb2, 0x46,
+        0xce, 0xe9, 0x8e, 0x9b,
+        0x12, 0xe9, 0x19, 0x7d
+    ];
+    const RAW_CBC: [u8; 16] = [
+        0x6b, 0xc1, 0xbe, 0xe2,
+        0x2e, 0x40, 0x9f, 0x96,
+        0xe9, 0x3d, 0x7e, 0x11,
+        0x73, 0x93, 0x17, 0x2a
+    ];
+
+    const CTR_KEY: Key = Key([
+        0x2b, 0x7e, 0x15, 0x16,
+        0x28, 0xae, 0xd2, 0xa6,
+        0xab, 0xf7, 0x15, 0x88,
+        0x09, 0xcf, 0x4f, 0x3c
+    ]);
+    const CTR_NONCE: Nonce = [0xff; 8];
+    const RAW_CTR: [u8; 16] = [
+        0x30, 0xc8, 0x1c, 0x46,
+        0xa3, 0x5c, 0xe4, 0x11,
+        0xe5, 0xfb, 0xc1, 0x19,
+        0x1a, 0x0a, 0x52, 0xef
+    ];
+    const CIPHERED_CTR: [u8; 16] = [
+        0x27, 0x5c, 0x37, 0xf4,
+        0xd3, 0x53, 0xf9, 0x93,
+        0x2f, 0x6c, 0xd4, 0x60,
+        0xa1, 0xc2, 0xb2, 0x25
+    ];
 
     #[test]
     fn default_encryption_options_are_ecb_with_no_padding() {
@@ -219,85 +269,108 @@ mod tests {
     }
 
     #[test]
-    fn encrypt_aes_128_in_ecb_mode_encrypts() {
-        let raw: &[u8] = &[
-            0x0, 0x11, 0x22, 0x33,
-            0x44, 0x55, 0x66, 0x77,
-            0x88, 0x99, 0xaa, 0xbb,
-            0xcc, 0xdd, 0xee, 0xff
-        ];
-        let key = &Key([
-            0x00, 0x01, 0x02, 0x03,
-            0x04, 0x05, 0x06, 0x07,
-            0x08, 0x09, 0x0a, 0x0b,
-            0x0c, 0x0d, 0x0e, 0x0f
-        ]);
-        let expected_cipher = &[
-            0x69, 0xc4, 0xe0, 0xd8,
-            0x6a, 0x7b, 0x04, 0x30,
-            0xd8, 0xcd, 0xb7, 0x80,
-            0x70, 0xb4, 0xc5, 0x5a
-        ];
-
+    fn encrypts_in_ecb_mode() {
         let actual_cipher = encrypt_aes_128(
-            &raw,
-            &key,
+            &RAW_ECB,
+            &ECB_KEY,
             &AESEncryptionOptions::new(
                 &BlockCipherMode::ECB,
                 &Padding::None,
             ),
         );
 
-        assert_eq!(actual_cipher, expected_cipher);
+        assert_eq!(actual_cipher, CIPHERED_ECB);
     }
 
     #[test]
-    #[ignore]
-    fn generate_ctr_bytes_for_length_test() {
-        let length = 15;
-        let nonce = [0, 1, 2, 3, 4, 5, 6, 7];
+    fn decrypts_in_ecb_mode() {
+        let actual_raw = decrypt_aes_128(
+            &CIPHERED_ECB,
+            &ECB_KEY,
+            &BlockCipherMode::ECB,
+        );
 
-        let generated_bytes = generate_ctr_bytes_for_length(length, &nonce);
-
-        assert!(false, "TODO: Write tests for ctr bytes generation for length");
+        assert_eq!(actual_raw, RAW_ECB);
     }
 
     #[test]
-    fn decrypt_aes_128_in_ecb_mode_nist_test_case() {
-        let cipher: &[u8] = &[
-            0x69, 0xc4, 0xe0, 0xd8,
-            0x6a, 0x7b, 0x04, 0x30,
-            0xd8, 0xcd, 0xb7, 0x80,
-            0x70, 0xb4, 0xc5, 0x5a
-        ];
-        let key = &Key([
-            0x00, 0x01, 0x02, 0x03,
-            0x04, 0x05, 0x06, 0x07,
-            0x08, 0x09, 0x0a, 0x0b,
-            0x0c, 0x0d, 0x0e, 0x0f
-        ]);
-        let expected_raw = &[
-            0x0, 0x11, 0x22, 0x33,
-            0x44, 0x55, 0x66, 0x77,
-            0x88, 0x99, 0xaa, 0xbb,
-            0xcc, 0xdd, 0xee, 0xff
-        ];
+    fn encrypts_in_cbc_mode() {
+        let actual_cipher = encrypt_aes_128(
+            &RAW_CBC,
+            &CBC_KEY,
+            &AESEncryptionOptions::new(
+                &BlockCipherMode::CBC(&CBC_IV),
+                &Padding::None,
+            ),
+        );
 
-        let actual_raw = decrypt_aes_128(&cipher, &key, &BlockCipherMode::ECB);
+        assert_eq!(actual_cipher, CIPHERED_CBC);
+    }
 
-        assert_eq!(actual_raw, expected_raw);
+    #[test]
+    fn decrypts_in_cbc_mode() {
+        let actual_raw = decrypt_aes_128(
+            &CIPHERED_CBC,
+            &CBC_KEY,
+            &BlockCipherMode::CBC(&CBC_IV),
+        );
+
+        assert_eq!(actual_raw, RAW_CBC);
+    }
+
+    #[test]
+    fn encrypts_in_ctr_mode() {
+        let actual_cipher = encrypt_aes_128(
+            &RAW_CTR,
+            &CTR_KEY,
+            &AESEncryptionOptions::new(
+                &BlockCipherMode::CTR(&CTR_NONCE),
+                &Padding::None,
+            ),
+        );
+
+        assert_eq!(actual_cipher, CIPHERED_CTR);
+    }
+
+    #[test]
+    fn decrypts_in_ctr_mode() {
+        // CTR decryption uses the dencryption process
+        let actual_raw = encrypt_aes_128(
+            &CIPHERED_CTR,
+            &CTR_KEY,
+            &AESEncryptionOptions::new(
+                &BlockCipherMode::CTR(&CTR_NONCE),
+                &Padding::None,
+            ),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Cannot decrypt using CTR block cipher mode. Use encryption instead.")]
+    fn decryption_in_ctr_mode_should_panic() {
+        decrypt_aes_128(
+            &CIPHERED_CTR,
+            &CTR_KEY,
+            &BlockCipherMode::CTR(&CTR_NONCE),
+        );
     }
 
     #[test]
     fn bytes_to_parts_converts_bytes_to_parts_of_block_size_length() {
         let bytes: [u8; 32] = [
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
-            16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31
+            0x00, 0x01, 0x02, 0x03,
+            0x04, 0x05, 0x06, 0x07,
+            0x08, 0x09, 0x10, 0x11,
+            0x12, 0x13, 0x14, 0x15,
+            0x16, 0x17, 0x18, 0x19,
+            0x20, 0x21, 0x22, 0x23,
+            0x24, 0x25, 0x26, 0x27,
+            0x28, 0x29, 0x30, 0x31
         ];
-        let expected_parts = vec![
-            vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-            vec![16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
-        ];
+        let expected_parts = [
+            [bytes[..16].to_vec()],
+            [bytes[16..].to_vec()]
+        ].concat();
 
         assert_eq!(bytes_to_parts(&bytes.to_vec()), expected_parts);
     }

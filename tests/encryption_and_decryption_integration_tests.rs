@@ -2,7 +2,7 @@ extern crate aes_ndlr as aes;
 
 use aes::{AESEncryptionOptions, BlockCipherMode, decrypt_aes_128, encrypt_aes_128, pad::Padding};
 use aes::key::Key;
-use generate::generate_aes_128_cbc_iv;
+use generate::generate_iv;
 
 mod generate;
 
@@ -53,7 +53,7 @@ fn encrypt_and_decrypt_cbc() {
         0x0c, 0x0d, 0x0e, 0x0f
     ]);
 
-    let iv = &generate_aes_128_cbc_iv();
+    let iv = &generate_iv();
 
     let cipher = encrypt_aes_128(
         &raw,

@@ -13,7 +13,7 @@ pub fn multiply_in_g(polynomial_value: u8, state_value: u8) -> u8 {
             p ^= a;
         }
 
-        let hi_bit_set = (a & 0x80) != 0;
+        let hi_bit_set = (a & (1 << 7)) != 0;
         a <<= 1;
         if hi_bit_set {
             a ^= irreducible_polynomial;
