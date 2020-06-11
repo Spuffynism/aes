@@ -12,13 +12,14 @@ Supports ECB, CBC and CTR block cipher modes and PKCS7 padding.
 - ~~publish on crates.io~~
 - ~~Remove generate.rs module as it's only used in tests~~
 - ~~Remove rand dependency~~
-- complete unit tests
+- ~~complete unit tests~~
     - ~~math~~
     - ~~xor~~
     - ~~state~~
-    - lib
-- complete integration tests
-    - aes
+    - ~~ctr~~
+    - ~~lib~~
+- ~~complete integration tests~~
+    - ~~aes~~
 - see about using property testing
 - properly document each file & functions
     - constants
@@ -29,3 +30,4 @@ Supports ECB, CBC and CTR block cipher modes and PKCS7 padding.
     - state
     - word
     - xor
+- see about using randomly generated integration tests for encryption and decryption
