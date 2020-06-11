@@ -3,7 +3,7 @@ extern crate rand;
 use self::rand::RngCore;
 use aes::{Iv, Block, key::Key};
 
-pub fn generate_aes_128_cbc_iv() -> Iv {
+pub fn generate_iv() -> Iv {
     let byte = random_byte;
     Block([
         [byte(), byte(), byte(), byte()],
@@ -13,11 +13,11 @@ pub fn generate_aes_128_cbc_iv() -> Iv {
     ])
 }
 
-fn random_byte() -> u8 {
+pub fn random_byte() -> u8 {
     rand::random::<u8>()
 }
 
-pub fn generate_aes_128_key() -> Key {
+pub fn generate_key() -> Key {
     let mut key = [0; 16];
     for item in key.iter_mut() {
         *item = random_byte();
@@ -38,8 +38,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn generate_aes_128_cbc_iv_test() {
-        let iv = generate_aes_128_cbc_iv().0;
+    fn generates_iv() {
+        let iv = generate_iv().0;
 
         assert_some_randomness(&iv);
         assert_eq!(iv.len(), 4);
@@ -52,8 +52,8 @@ mod tests {
     }
 
     #[test]
-    fn generate_aes_128_key_test() {
-        let key = generate_aes_128_key().0;
+    fn generates_key() {
+        let key = generate_key().0;
 
         assert_some_randomness(&key[..]);
         assert_eq!(key.len(), 16);
