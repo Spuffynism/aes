@@ -2,19 +2,13 @@ use ::{math, Nb};
 use ::{Iv, S_BOX};
 use INVERSE_S_BOX;
 
-#[derive(Debug, Clone)]
+/// Current state of the aes-128 cipher
+#[derive(Debug, Clone,PartialEq)]
 pub struct State {
     data: [[u8; 4]; Nb],
 }
 
-impl PartialEq for State {
-    fn eq(&self, other: &Self) -> bool {
-        self.data == other.data
-    }
-}
-
 impl State {
-    // TODO(nich): Rename "part" usage to block?
     pub fn from_part(part: &[u8]) -> State {
         let mut state = State::empty();
         for r in 0..4 {
@@ -174,7 +168,7 @@ mod tests {
     }
 
     #[test]
-    fn two_states_are_equal_if_data_matrixes_are() {
+    fn two_states_are_equal_if_data_matrices_are() {
         assert_eq!(SOME_STATE, create_state(SOME_STATE.data));
         assert_eq!(EMPTY_STATE, create_state(EMPTY_STATE.data));
     }
@@ -216,16 +210,16 @@ mod tests {
 
     #[test]
     fn to_block_converts_to_block() {
-        let block = &[
+        let part = &[
             0x01, 0x02, 0x03, 0x04,
             0x11, 0x12, 0x13, 0x14,
             0x21, 0x22, 0x23, 0x24,
             0x31, 0x32, 0x33, 0x34,
         ];
 
-        let state = State::from_part(block);
+        let state = State::from_part(part);
 
-        assert_eq!(state.to_block(), block.to_vec());
+        assert_eq!(state.to_block(), part.to_vec());
     }
 
     #[test]

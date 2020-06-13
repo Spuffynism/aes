@@ -3,7 +3,6 @@ extern crate aes_ndlr as aes;
 use std::ops::Range;
 
 use aes::{AESEncryptionOptions, BlockCipherMode, decrypt_aes_128, encrypt_aes_128, pad::Padding};
-use aes::key::Key;
 use generate::{generate_bytes_for_length, generate_iv, generate_key};
 
 mod generate;

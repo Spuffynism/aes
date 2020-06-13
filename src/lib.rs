@@ -1,8 +1,12 @@
-use constants::*;
 /// Resources used:
-/// https://csrc.nist.gov/csrc/media/publications/fips/197/final/documents/fips-197.pdf
-/// https://en.wikipedia.org/wiki/Rijndael_MixColumns#Implementation_example
-/// https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
+/// - FIPS 197, Advanced Encryption Standard (AES):
+///     https://csrc.nist.gov/csrc/media/publications/fips/197/final/documents/fips-197.pdf
+///     Comments in the code reference this paper's sections.
+/// - Rijndael MixColumns - Implementation example:
+///     https://en.wikipedia.org/wiki/Rijndael_MixColumns#Implementation_example
+/// - Block cipher mode of operation:
+///     https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation
+use constants::*;
 use key::Key;
 use pad::{Padding, pkcs7_pad};
 use Padding::PKCS7;
@@ -38,8 +42,15 @@ impl Default for AESEncryptionOptions<'_> {
     }
 }
 
+/// a 4 x Nb matrix
 #[derive(PartialEq, Debug)]
 pub struct Block(pub [[u8; 4]; Nb]);
+
+impl Block {
+    pub fn empty() -> Self {
+        Block([[0; 4]; Nb])
+    }
+}
 
 #[derive(PartialEq, Debug)]
 pub enum BlockCipherMode<'a> {
@@ -48,20 +59,15 @@ pub enum BlockCipherMode<'a> {
     CTR(&'a Nonce),
 }
 
-impl Block {
-    pub fn empty() -> Self {
-        Block([[0; 4]; Nb])
-    }
-}
-
 pub type Iv = Block;
 pub type Nonce = [u8; 8];
 
+/// Encrypts in aes-128.
+///
 /// At the start of the Cipher, the input is copied to the State array using the conventions
 /// described in Sec. 3.4. After an initial Round Key addition, the State array is transformed by
-/// implementing a round function 10, 12, or 14 times (depending on the key length), with the
-/// final round differing slightly from the first Nr -1 rounds. The final State is then copied to
-/// the output as described in Sec. 3.4.
+/// implementing a round function Nr times, with the final round differing slightly from the first
+/// Nr -1 rounds. The final State is then copied to the output as described in Sec. 3.4.
 pub fn encrypt_aes_128(raw_bytes: &[u8], key: &Key, options: &AESEncryptionOptions) -> Vec<u8> {
     let block_size = 16;
 
@@ -117,10 +123,7 @@ pub fn encrypt_aes_128(raw_bytes: &[u8], key: &Key, options: &AESEncryptionOptio
     }
 }
 
-/// The Cipher transformations in Sec. 5.1 can be inverted and then implemented in reverse order to
-/// produce a straightforward Inverse Cipher for the AES algorithm. The individual transformations
-/// used in the Inverse Cipher - InvShiftRows(), InvSubBytes(),InvMixColumns(),
-/// and AddRoundKey() – process the State and are described in the following subsections.
+/// Decrypts aes-128 ciphers.
 pub fn decrypt_aes_128(cipher: &[u8], key: &Key, mode: &BlockCipherMode) -> Vec<u8> {
     if let BlockCipherMode::CTR(_nonce) = mode {
         panic!("Cannot decrypt using CTR block cipher mode. Use encryption instead.");
@@ -162,17 +165,11 @@ pub fn decrypt_aes_128(cipher: &[u8], key: &Key, mode: &BlockCipherMode) -> Vec<
     deciphered
 }
 
-pub fn bytes_to_parts(bytes: &[u8]) -> Vec<Vec<u8>> {
+/// chunks a slice of bytes to chunks of block_size length
+pub fn bytes_to_parts(bytes: &[u8]) -> Vec<&[u8]> {
     let block_size = 16usize;
 
-    let mut parts = vec![
-        vec![0; block_size]; (bytes.len() as f32 / block_size as f32).ceil() as usize
-    ];
-    for (i, byte) in bytes.iter().enumerate() {
-        parts[(i as f32 / block_size as f32).floor() as usize][i % block_size] = *byte;
-    }
-
-    parts
+    bytes.chunks_exact(block_size).collect()
 }
 
 /// Some encryption/decryption test cases are taken from:
@@ -343,6 +340,8 @@ mod tests {
                 &Padding::None,
             ),
         );
+
+        assert_eq!(actual_raw, RAW_CTR);
     }
 
     #[test]
@@ -367,10 +366,10 @@ mod tests {
             0x24, 0x25, 0x26, 0x27,
             0x28, 0x29, 0x30, 0x31
         ];
-        let expected_parts = [
-            [bytes[..16].to_vec()],
-            [bytes[16..].to_vec()]
-        ].concat();
+        let expected_parts = vec![
+            &bytes[..16],
+            &bytes[16..]
+        ];
 
         assert_eq!(bytes_to_parts(&bytes.to_vec()), expected_parts);
     }
