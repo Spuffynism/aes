@@ -1,6 +1,6 @@
 [package]
 name = "aes-ndlr"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["Spuffynism"]
 license = "MIT"
 description = "An implementation of AES"
