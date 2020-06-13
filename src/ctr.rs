@@ -1,7 +1,7 @@
 use Nonce;
 
 /// Generates a byte stream of the form:
-/// Nonce + {C} + Nonce + {C+1} + Nonce + {C+2}... etc. where C is a 8 byte counter
+/// Nonce + {C} + Nonce + {C+1} + Nonce + {C+2}... etc. where C is an 8 byte counter
 /// Source:
 /// https://web.archive.org/web/20150226072817/http://csrc.nist.gov/groups/ST/toolkit/BCM/documents/proposedmodes/ctr/ctr-spec.pdf
 pub fn generate_ctr_byte_stream_for_length(length: usize, nonce: &Nonce) -> Vec<u8> {
@@ -33,12 +33,11 @@ pub fn generate_ctr_byte_stream_for_length(length: usize, nonce: &Nonce) -> Vec<
 #[cfg(test)]
 mod tests {
     use std::u16;
-    use std::u32;
 
     use super::*;
 
     #[test]
-    fn generate_ctr_bytes_for_length_test() {
+    fn generates_ctr_bytes_for_length() {
         struct TestCase {
             length: usize,
             nonce: [u8; 8],

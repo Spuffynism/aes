@@ -44,17 +44,16 @@ pub const INVERSE_S_BOX: [u8; 256] = [
 #[allow(non_upper_case_globals)]
 pub const Nb: usize = 4;
 
-/// Number of rounds, which is a function of Nk and Nb (which is fixed). For this implementation,
-/// Nr = 10. (because this is only aes-128)
+/// Number of rounds, which is a function of Nk and Nb (which is fixed). For this
+/// aes-128 implementation, Nr = 10.
 #[allow(non_upper_case_globals)]
 pub const Nr: usize = 10;
 
-/// Number of 32-bit words comprising the Cipher Key. For this implementation, Nk = 4. (because
-/// this is only aes-128)
+/// Number of 32-bit words comprising the Cipher Key. For this aes-128 implementation, Nk = 4.
 #[allow(non_upper_case_globals)]
 pub const Nk: usize = 4;
 
-/// Round constant word array.
+/// Round constant word array. Used in the key expansion routine.
 #[allow(non_upper_case_globals)]
 pub const Rcon: [[u8; 4]; 10] = [
     [0x01, 0x00, 0x00, 0x00],
