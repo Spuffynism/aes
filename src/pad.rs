@@ -19,8 +19,38 @@ pub fn pkcs7_pad(bytes: &[u8], block_size: u8) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    use pad::pkcs7_pad;
+
     #[test]
-    fn pkcs7_pads() {
-        unimplemented!();
+    fn pads_empty_bytes() {
+        let empty = &[];
+        let block_size = 16;
+
+        let expected = &[16u8; 16];
+
+        assert_eq!(expected.to_vec(), pkcs7_pad(empty, block_size));
+    }
+
+    #[test]
+    fn pads_to_length() {
+        let some_bytes = &[12; 12];
+        let block_size = 16;
+
+        let expected = &[
+            12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
+            4, 4, 4, 4
+        ];
+
+        assert_eq!(expected.to_vec(), pkcs7_pad(some_bytes, block_size));
+    }
+
+    #[test]
+    fn ads_complete_padding_block_when_is_already_at_length() {
+        let full_bytes = &[16; 16];
+        let block_size = 16;
+
+        let expected = &[16; 16 * 2];
+
+        assert_eq!(expected.to_vec(), pkcs7_pad(full_bytes, block_size));
     }
 }

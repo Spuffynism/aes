@@ -9,4 +9,3 @@ Supports ECB, CBC and CTR block cipher modes and PKCS7 padding.
 ## TODO
 
 - see about using property testing
-- complete padding tests
